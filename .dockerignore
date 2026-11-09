@@ -1,0 +1,11 @@
+.git
+.gitignore
+doc
+README.md
+prompt.txt
+scripts
+target
+src/test
+.idea
+*.iml
+.DS_Store
