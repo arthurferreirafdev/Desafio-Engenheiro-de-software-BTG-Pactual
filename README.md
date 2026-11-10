@@ -6,6 +6,66 @@ Arquitetura em **DDD por camadas** (domain, application, infrastructure, api) co
 
 ---
 
+## Sumário
+
+- [Como rodar](#como-rodar)
+  - [Publicando a mensagem de exemplo](#publicando-a-mensagem-de-exemplo)
+- [Como funciona](#como-funciona)
+  - [Diagrama de arquitetura (Mermaid)](#diagrama-de-arquitetura-mermaid)
+  - [Modelagem de dados — DER (Mermaid)](#modelagem-de-dados--der-mermaid)
+  - [Diagrama de sequência — consumo da mensagem (RabbitMQ → PostgreSQL)](#diagrama-de-sequência--consumo-da-mensagem-rabbitmq--postgresql)
+  - [Diagrama de classes — desenho tático do DDD](#diagrama-de-classes--desenho-tático-do-ddd)
+  - [Diagrama de implantação (Mermaid)](#diagrama-de-implantação-mermaid)
+- [Estrutura do projeto (DDD por camadas)](#estrutura-do-projeto-ddd-por-camadas)
+- [Endpoints da API](#endpoints-da-api)
+- [Testes](#testes)
+- [Comportamento da mensageria](#comportamento-da-mensageria)
+- [Referências dos diagramas](#referências-dos-diagramas)
+
+---
+
+## Como rodar
+
+Pré-requisitos: Docker (com compose) — não precisa de Java/Maven instalados.
+
+```bash
+docker compose up -d --build
+```
+
+Aguardar a API subir (~15s) e conferir saúde:
+
+```bash
+curl http://localhost:8080/health/ready
+# {"status":"UP","components":{"db":...,"rabbit":...}}
+```
+
+- **API**: http://localhost:8080
+- **Swagger**: http://localhost:8080/swagger (redireciona para `/swagger-ui/index.html`)
+- **RabbitMQ Management UI**: http://localhost:15672 (guest/guest)
+
+Migrations Flyway são aplicadas automaticamente ao iniciar.
+
+### Publicando a mensagem de exemplo
+
+Via script (usa a Management API do RabbitMQ):
+
+```bash
+./scripts/send-message.sh
+```
+
+Ou manualmente na UI do RabbitMQ (http://localhost:15672 → Exchanges → `pedidos.exchange` → Publish message), routing key `pedido.criado`:
+
+```json
+{
+  "codigoPedido": 1001,
+  "codigoCliente": 1,
+  "itens": [
+    { "produto": "lápis",   "quantidade": 100, "preco": 1.10 },
+    { "produto": "caderno", "quantidade": 10,  "preco": 1.00 }
+  ]
+}
+```
+
 ## Como funciona
 
 O fluxo segue o diagrama de arquitetura em `doc/diagrama_arquitetura.png` (fonte editável: `doc/diagrama_arquitetura.excalidraw`):
@@ -327,48 +387,6 @@ src/main/java/com/btg/orders/
 **SOLID na prática**: domínio e aplicação não importam Spring; dependem de abstrações (`PedidoRepository`, `CatalogoProdutos`, `ConsultaPedidos`, `UnitOfWork`) implementadas pela infraestrutura e ligadas na API (DIP). Cada caso de uso tem uma única responsabilidade (SRP); novas consultas/fontes entram por novas implementações de port (OCP/LSP); interfaces pequenas e coesas (ISP).
 
 ---
-
-## Como rodar
-
-Pré-requisitos: Docker (com compose) — não precisa de Java/Maven instalados.
-
-```bash
-docker compose up -d --build
-```
-
-Aguardar a API subir (~15s) e conferir saúde:
-
-```bash
-curl http://localhost:8080/health/ready
-# {"status":"UP","components":{"db":...,"rabbit":...}}
-```
-
-- **API**: http://localhost:8080
-- **Swagger**: http://localhost:8080/swagger (redireciona para `/swagger-ui/index.html`)
-- **RabbitMQ Management UI**: http://localhost:15672 (guest/guest)
-
-Migrations Flyway são aplicadas automaticamente ao iniciar.
-
-### Publicando a mensagem de exemplo
-
-Via script (usa a Management API do RabbitMQ):
-
-```bash
-./scripts/send-message.sh
-```
-
-Ou manualmente na UI do RabbitMQ (http://localhost:15672 → Exchanges → `pedidos.exchange` → Publish message), routing key `pedido.criado`:
-
-```json
-{
-  "codigoPedido": 1001,
-  "codigoCliente": 1,
-  "itens": [
-    { "produto": "lápis",   "quantidade": 100, "preco": 1.10 },
-    { "produto": "caderno", "quantidade": 10,  "preco": 1.00 }
-  ]
-}
-```
 
 ## Endpoints da API
 
