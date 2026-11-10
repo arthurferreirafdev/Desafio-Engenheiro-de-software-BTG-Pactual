@@ -1,0 +1,15 @@
+# Diagrama de implantação — containers docker compose (postgres, rabbitmq, api) em rede dedicada
+flowchart TB
+    subgraph host["Máquina host / Servidor (Docker Engine)"]
+        subgraph rede["rede: btg"]
+            PG["container btg-postgres<br/>postgres:16-alpine<br/>:5432 — volume postgres-dados<br/>healthcheck: pg_isready"]
+            RB["container btg-rabbitmq<br/>rabbitmq:3.13-management<br/>:5672 (AMQP) · :15672 (UI)<br/>healthcheck: rabbitmq-diagnostics ping"]
+            API_C["container btg-api<br/>imagem btg-orders (multi-stage)<br/>eclipse-temurin:21-jre · :8080<br/>depends_on: postgres, rabbitmq (healthy)"]
+        end
+    end
+
+    DEV["Desenvolvedor / Cliente"] -- "docker compose up -d" --> host
+    USER["Consumidor da API"] -- "GET :8080/api/*" --> API_C
+    OPER["Operação (UI RabbitMQ)"] -- ":15672 (guest/guest)" --> RB
+    API_C -- "JDBC :5432" --> PG
+    API_C -- "AMQP :5672" --> RB

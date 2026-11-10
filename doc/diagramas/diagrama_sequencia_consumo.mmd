@@ -1,0 +1,53 @@
+# Diagrama de sequência — consumo da mensagem: RabbitMQ → consumer → use case → domínio → PostgreSQL (idempotência, DLQ, retry)
+sequenceDiagram
+    autonumber
+    participant EC as External Client
+    participant RB as RabbitMQ
+    participant CON as PedidoConsumer
+    participant DEC as DecodificadorMensagemPedido
+    participant UC as RegistrarPedidoUseCase
+    participant DOM as Domínio (Pedido)
+    participant CAT as CatalogoProdutos
+    participant REP as PedidoRepository
+    participant DB as PostgreSQL
+
+    EC->>RB: publica pedido.criado (JSON)
+    RB->>CON: entrega da pedidos.queue (deliveryTag)
+    CON->>DEC: decodificar(body)
+    alt JSON malformado / contrato inválido
+        DEC-->>CON: MensagemInvalidaException
+        CON->>RB: basicNack (sem requeue)
+        RB->>RB: roteia para pedidos.dlq
+    else mensagem válida
+        DEC-->>CON: PedidoMessage
+        CON->>UC: executar(mensagem)
+        UC->>UC: validar contrato
+        UC->>REP: existePorCodigo(codigoPedido)
+        REP->>DB: SELECT pedido
+        alt pedido já existe (idempotência)
+            REP-->>UC: true
+            UC-->>CON: DUPLICADO
+            CON->>RB: basicAck
+        else pedido novo
+            UC->>UC: UnitOfWork.begin()
+            loop para cada item consolidado
+                UC->>CAT: obterOuCriar(nome, preco)
+                CAT->>DB: find-or-create produto (LOWER(TRIM(nome)))
+                CAT-->>UC: Produto
+                UC->>DOM: new ItemPedido(produto, cliente, qtd, preco)
+            end
+            UC->>DOM: Pedido.novo(codigo, cliente, itens)
+            DOM-->>UC: agregado (invariantes validadas)
+            UC->>REP: salvar(pedido)
+            REP->>DB: INSERT pedido + itens (transação única)
+            alt erro transitório (ex.: banco indisponível)
+                UC--x CON: exceção
+                Note over CON,RB: retry em memória 3x (backoff 1s→2s→4s)
+                CON->>RB: esgotou tentativas → basicNack
+                RB->>RB: roteia para pedidos.dlq
+            else commit OK
+                UC-->>CON: NOVO
+                CON->>RB: basicAck (após commit)
+            end
+        end
+    end

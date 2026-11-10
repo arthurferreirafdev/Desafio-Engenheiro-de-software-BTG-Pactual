@@ -1,0 +1,23 @@
+# DER — modelagem de dados (pedido, item_pedido, produto); valor total sempre derivado
+erDiagram
+    PEDIDO ||--|{ ITEM_PEDIDO : "possui"
+    PRODUTO ||--o{ ITEM_PEDIDO : "compõe"
+
+    PEDIDO {
+        int codigo_pedido PK "identidade natural vinda da mensagem (idempotência)"
+        int codigo_cliente FK "sem tabela cliente, conforme o DER original"
+        timestamp criado_em
+    }
+    ITEM_PEDIDO {
+        int codigo_pedido PK, FK
+        int codigo_produto PK, FK
+        int codigo_cliente FK "denormalizado, conforme o DER original"
+        decimal preco "histórico no momento do pedido"
+        int quantidade "CHECK quantidade > 0"
+    }
+    PRODUTO {
+        int codigo_produto PK "IDENTITY (find-or-create por nome)"
+        varchar nome "índice único em LOWER(TRIM(nome))"
+        decimal preco "preço vigente"
+        timestamp criado_em
+    }

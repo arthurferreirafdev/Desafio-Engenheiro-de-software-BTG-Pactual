@@ -1,0 +1,125 @@
+# Diagrama de classes — desenho tático DDD: agregado Pedido, value objects, ports e adapters
+classDiagram
+    direction TB
+
+    class DomainException {
+        <<exceção de domínio>>
+    }
+
+    class Pedido {
+        <<aggregate root>>
+        -int codigoPedido
+        -int codigoCliente
+        -LocalDateTime criadoEm
+        -List~ItemPedido~ itens
+        +novo(codigo, cliente, itens)$ Pedido
+        +valorTotal() BigDecimal
+        -consolidar(itens)$ List~ItemPedido~
+    }
+
+    class ItemPedido {
+        <<entidade do agregado>>
+        -int codigoProduto
+        -int codigoCliente
+        -Quantidade quantidade
+        -Preco preco
+        +valorTotalItem() BigDecimal
+    }
+
+    class Preco {
+        <<value object>>
+        -BigDecimal valor
+        +multiplicarPor(qtd) BigDecimal
+    }
+
+    class Quantidade {
+        <<value object>>
+        -int valor
+    }
+
+    class Produto {
+        <<entidade de catálogo>>
+        -int codigoProduto
+        -String nome
+        -Preco preco
+    }
+
+    class PedidoRepository {
+        <<port — domínio>>
+        +existePorCodigo(codigo) boolean
+        +salvar(pedido)
+    }
+
+    class CatalogoProdutos {
+        <<port — domínio>>
+        +obterOuCriar(nome, preco) Produto
+    }
+
+    class RegistrarPedidoUseCase {
+        <<caso de uso — application>>
+        -PedidoRepository pedidos
+        -CatalogoProdutos catalogo
+        -UnitOfWork unitOfWork
+        +executar(mensagem) ResultadoRegistro
+    }
+
+    class ConsultaPedidos {
+        <<port — application>>
+        +totalPorPedido(codigo) Optional~TotalPedidoResponse~
+        +contarPedidosPorCliente(cliente) long
+        +listarPedidosPorCliente(cliente, pag, tam) PaginaPedidosResponse
+    }
+
+    class UnitOfWork {
+        <<port — application>>
+        +executar(acao) T
+    }
+
+    class DecodificadorMensagemPedido {
+        <<port — application>>
+        +decodificar(corpo) PedidoMessage
+    }
+
+    class PedidoConsumer {
+        <<adapter — infrastructure>>
+        +consumir(mensagem, canal)
+    }
+
+    class PedidoRepositoryAdapter {
+        <<adapter — infrastructure/JPA>>
+    }
+    class CatalogoProdutosAdapter {
+        <<adapter — infrastructure/JPA>>
+    }
+    class ConsultaPedidosAdapter {
+        <<adapter — infrastructure/SQL>>
+    }
+    class UnitOfWorkAdapter {
+        <<adapter — infrastructure/TransactionTemplate>>
+    }
+    class DecodificadorMensagemPedidoJackson {
+        <<adapter — infrastructure/Jackson>>
+    }
+
+    Pedido *-- "1..*" ItemPedido : compõe
+    ItemPedido --> Preco : usa
+    ItemPedido --> Quantidade : usa
+    Produto --> Preco : usa
+    ItemPedido ..> Produto : referencia
+
+    PedidoRepository ..> Pedido : persiste
+    CatalogoProdutos ..> Produto : resolve
+
+    RegistrarPedidoUseCase --> PedidoRepository : depende
+    RegistrarPedidoUseCase --> CatalogoProdutos : depende
+    RegistrarPedidoUseCase --> UnitOfWork : delimita transação
+    RegistrarPedidoUseCase ..> Pedido : cria agregado
+
+    PedidoConsumer --> DecodificadorMensagemPedido : decodifica
+    PedidoConsumer --> RegistrarPedidoUseCase : delega
+
+    PedidoRepositoryAdapter ..|> PedidoRepository : implementa
+    CatalogoProdutosAdapter ..|> CatalogoProdutos : implementa
+    ConsultaPedidosAdapter ..|> ConsultaPedidos : implementa
+    UnitOfWorkAdapter ..|> UnitOfWork : implementa
+    DecodificadorMensagemPedidoJackson ..|> DecodificadorMensagemPedido : implementa

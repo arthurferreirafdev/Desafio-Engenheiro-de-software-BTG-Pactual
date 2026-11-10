@@ -1,0 +1,37 @@
+# Diagrama de arquitetura — fluxo: External Client → RabbitMQ → Service (Spring Boot) → PostgreSQL, e Client/Frontend → API REST
+flowchart LR
+    subgraph externo["Cliente externo"]
+        EC["External Client"]
+    end
+
+    subgraph broker["RabbitMQ"]
+        EX(("pedidos.exchange<br/>direct"))
+        Q[["pedidos.queue"]]
+        DLX(("pedidos.dlx"))
+        DLQ[["pedidos.dlq"]]
+    end
+
+    subgraph app["Service / Server — Spring Boot (btg-orders)"]
+        direction TB
+        API["API REST<br/>/api/*"]
+        CONSUMER["PedidoConsumer<br/>(ack manual, retry 3x)"]
+        UC["RegistrarPedidoUseCase<br/>(application)"]
+        DOM["Domínio DDD<br/>Pedido · ItemPedido · Produto<br/>Preco · Quantidade"]
+        RD["ConsultaPedidosAdapter<br/>(queries SQL)"]
+    end
+
+    subgraph dados["PostgreSQL"]
+        DB[("btg<br/>pedido · item_pedido · produto")]
+    end
+
+    FE["Client / Frontend"]
+
+    EC -- "publica pedido.criado" --> EX
+    EX --> Q
+    EX -.->|rejeitadas| DLX --> DLQ
+    Q --> CONSUMER
+    CONSUMER --> UC --> DOM
+    UC -- "JPA + UnitOfWork (transação)" --> DB
+    FE -- "HTTP REST" --> API
+    API --> RD
+    RD -- "SELECT agregados" --> DB
